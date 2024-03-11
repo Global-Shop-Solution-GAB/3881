@@ -1,0 +1,356 @@
+Program.Sub.ScreenSU.Start
+gui.Form1..create
+gui.Form1..caption("Detail Billing")
+gui.Form1..size(12355,7815)
+gui.Form1..minx(0)
+gui.Form1..miny(0)
+gui.Form1..position(0,0)
+gui.Form1..event(resize,form1_resize)
+gui.Form1..event(unload,Form1_Unload)
+gui.Form1..alwaysontop(False)
+gui.Form1..fontname("Arial")
+gui.Form1..fontsize(7)
+gui.Form1..forecolor(0)
+gui.Form1..fontstyle(,,,,)
+gui.Form1..BackColor(-2147483633)
+gui.Form1..controlbox(True)
+gui.Form1..maxbutton(False)
+gui.Form1..minbutton(False)
+gui.Form1..mousepointer(0)
+gui.Form1..moveable(True)
+gui.Form1..sizeable(True)
+gui.Form1..ShowInTaskBar(True)
+gui.Form1..titlebar(True)
+gui.Form1.gsfgGrid.create(gsflexgrid)
+gui.Form1.gsfgGrid.FixedRows(0)
+gui.Form1.gsfgGrid.FixedCols(0)
+gui.Form1.gsfgGrid.visible(True)
+gui.Form1.gsfgGrid.size(11860,6925)
+gui.Form1.gsfgGrid.zorder(0)
+gui.Form1.gsfgGrid.position(190,190)
+gui.Form1.gsfgGrid.enabled(True)
+gui.Form1.gsfgGrid.event(mouseup,gsfggrid_mouseup)
+
+
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Variable.Global.sCustomer.Declare(String)
+Variable.UDT.uLines.Define("Order_Number",String,Order_No)
+Variable.UDT.uLines.Define("Date_Order",Date,Date_Order)
+Variable.UDT.uLines.Define("Part",String,Part)
+Variable.UDT.uLines.Define("Description",String,Description)
+Variable.UDT.uLines.Define("Qty",Float,Qty_Ordered)
+Variable.UDT.uLines.Define("Extension",Float,Extension)
+Variable.UDT.uLines.Define("Job",String,Job)
+Variable.UDT.uLines.Define("Suffix",String,Suffix)
+Variable.UDT.uLines.Define("Line",String,Record_No)
+Variable.UDT.uLines.Define("WO",String,WO)
+Variable.Global.bSort.Declare(Boolean,False)
+Variable.uGlobal.uLines.Declare("uLines")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.ODBC.Connection!conX.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.Control.If(V.Caller.Hook,=,"42900")
+	'CRM populate hook Script 1 CRM-cmdGAB-0
+	V.Passed.CRM-cmdGAB-0.Set("Detail Billing")
+	Function.Intrinsic.Control.CallSub(Form1_unload)
+F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,"42918")
+	'Script 1 Hook on CRM
+	'customer id stored in : DATA-CRM-COMPID
+	V.Global.sCustomer.Set(V.Passed.DATA-CRM-COMPID)
+	Function.Intrinsic.Control.If(V.Global.sCustomer.Trim,<>,"")
+		Function.Intrinsic.Control.CallSub(Buildstyle)
+		Function.Intrinsic.Control.CallSub(Populate)
+		Gui.Form1..Show
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ElseIf(V.Caller.Hook,=,"123")
+	'for testing this b from non menu
+	V.Global.sCustomer.Set("001000")
+	Function.Intrinsic.Control.If(V.Global.sCustomer.Trim,<>,"")
+		Function.Intrinsic.Control.CallSub(Buildstyle)
+		Function.Intrinsic.Control.CallSub(Populate)
+		Gui.Form1..Show
+	Function.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.else
+	F.Intrinsic.Control.CallSub(Form1_unload)
+Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3881_CRM_Order_View.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(Form1_unload)
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Main.End
+
+Program.Sub.Form1_Unload.Start
+F.Intrinsic.Control.SetErrorHandler("Form1_Unload_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+F.ODBC.Connection!conX.Close
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Form1_Unload_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3881_CRM_Order_View.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+
+Program.Sub.Form1_Unload.End
+
+Program.Sub.Populate.Start
+F.Intrinsic.Control.SetErrorHandler("Populate_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sSQL.Declare(String)
+
+'build SQL based on Global Customer Value
+F.Intrinsic.String.Build("Select Date_Order,Order_No,Left(Record_No,3) As Record_NO,Part,Description,Qty_Ordered,Extension,Job,Suffix,Case When Suffix = '' Then Job Else Job + '-' + Suffix End As WO From V_DTL_Bill_Lines Where Customer = '{0}' Order By Date_Order",V.Global.sCustomer,V.Local.sSQL)
+F.ODBC.Connection!conX.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+
+'Load Into UDT
+Function.Intrinsic.Control.If(V.ODBC.conX!rst.EOF,<>,True)
+	F.Intrinsic.Variable.LoadUDTFromRecordset("conx","rst","v.uglobal.uLines",False,100)
+Function.Intrinsic.Control.Else
+	'Customer has no order lines don't show anything
+	F.Intrinsic.UI.Msgbox("Detail billing records not found for customer.")
+	Function.Intrinsic.Control.CallSub(Form1_unload)
+Function.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Build("Detail Billing for Customer: {0}",V.Global.sCustomer,V.Local.sSQL)
+Gui.Form1..Caption(V.Local.sSQL)
+
+'Load into Grid
+Gui.Form1.gsfgGrid.LoadFromUDT("v.uglobal.uLines","Date_Order*!*Order_Number*!*Line*!*Part*!*Description*!*Qty*!*Extension*!*WO*!*Job*!*Suffix",2)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Populate_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3881_CRM_Order_View.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(Form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Populate.End
+
+Program.Sub.Buildstyle.Start
+F.Intrinsic.Control.SetErrorHandler("Buildstyle_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.iC.Declare(Long)
+V.Local.sRet.Declare(String)
+
+Gui.Form1.gsfgGrid.Cols(10)
+Gui.Form1.gsfgGrid.Rows(1)
+Gui.Form1.gsfgGrid.Rows(2)
+Gui.Form1.gsfgGrid.FixedRows(1)
+
+
+Gui.Form1.gsfgGrid.SetColumnPercentages(".11:.10:.08:.18:.20:.1:.12:.1:0:0")
+Gui.Form1.gsfgGrid.TextMatrix(0,0,"Order Date")
+Gui.Form1.gsfgGrid.TextMatrix(1,0,"Order No")
+Gui.Form1.gsfgGrid.TextMatrix(2,0,"Line")
+Gui.Form1.gsfgGrid.TextMatrix(3,0,"Part")
+Gui.Form1.gsfgGrid.TextMatrix(4,0,"Desc")
+Gui.Form1.gsfgGrid.TextMatrix(5,0,"Quantity")
+Gui.Form1.gsfgGrid.TextMatrix(6,0,"Extension")
+Gui.Form1.gsfgGrid.TextMatrix(7,0,"WO")
+
+
+
+F.Intrinsic.Control.For(V.Local.iC,0,7,1)
+	Gui.Form1.gsfgGrid.BuildStyle(1,V.Local.iC,"Fontstyle","Bold",True)
+	Gui.Form1.gsfgGrid.BuildStyle(1,V.Local.iC,"Type","Locked",True)
+	Gui.Form1.gsfgGrid.BuildStyle(1,V.Local.iC,"Format","Alignment",4)
+	Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Type","Locked",True)
+	Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Alignment",4)
+	Function.Intrinsic.Control.If(V.Local.iC,=,3,"OR",V.local.ic,=,4)
+		'part and desc column
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Alignment",2)
+	Function.Intrinsic.Control.ElseIf(V.Local.iC,=,5)
+		'quantity column
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Alignment",6)
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Mask","###,###.00")
+	F.Intrinsic.Control.ElseIf(V.Local.iC,=,6)
+		'format mask of the Extension amount
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Mask","\$###,###.00")
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Alignment",6)
+	Function.Intrinsic.Control.ElseIf(V.Local.iC,=,7)
+		'this is our last column so we want to make it clickable looking.
+'		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Format","Alignment",4)
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Color","Fore",V.Color.LtBlue)
+		Gui.Form1.gsfgGrid.BuildStyle(2,V.Local.iC,"Fontstyle","Underline",True)
+	Function.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.iC)
+
+Gui.Form1.gsfgGrid.ApplyStyle(0,1)
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Buildstyle_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3881_CRM_Order_View.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Buildstyle.End
+
+program.sub.gsfggrid_mouseup.start
+F.Intrinsic.Control.SetErrorHandler("gsfggrid_mouseup_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+V.Local.sRet.Declare(String)
+V.Local.sParam.Declare(String)
+
+F.Intrinsic.Control.BlockEvents
+
+'mouse up we are either going to sort or we going to open up the work order that they clicked on
+F.Intrinsic.Control.If(v.args.MouseRow,=,0)
+	'header row sort it
+	Gui.Form1.gsfgGrid.Visible(False)
+	F.Intrinsic.Control.CallSub(Sort_grid,"Col",v.Args.Mousecol)
+	Gui.Form1.gsfgGrid.Visible(True)
+Function.Intrinsic.Control.Else
+	'is it only the last col 7
+	F.Intrinsic.Control.If(v.Args.mousecol,=,7)
+		'then we are going to call the callwrapper to open up our WO.
+		'read our wor
+		V.Local.sRet.Redim(0,1)
+		Gui.Form1.gsfgGrid.GetTextMatrix(8,v.Args.mouserow,v.Local.sRet(0))
+		Gui.Form1.gsfgGrid.GetTextMatrix(9,v.Args.mouserow,v.Local.sRet(1))
+		F.Intrinsic.Control.If(V.Local.sRet(0).Trim,<>,"")
+			'look it up http://gabforums.globalshopsolutions.com/topic.asp?TOPIC_ID=10341
+			Gui.Form1..Enabled(False)
+			Function.Intrinsic.String.ConcatCallWrapperArgs("7",v.Local.sRet(0),v.Local.sRet(1),"A",v.Local.sParam)
+			F.Global.General.CallWrapperSync(450000,v.Local.sParam)
+			Gui.Form1..Enabled(True)
+		Function.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.UnBlockEvents
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("gsfggrid_mouseup_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3881_CRM_Order_View.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(Form1_unload)
+Function.Intrinsic.Control.EndIf
+
+
+program.sub.gsfggrid_mouseup.end
+
+Program.Sub.Sort_Grid.Start
+F.Intrinsic.Control.SetErrorHandler("Sort_Grid_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+F.Intrinsic.Control.SelectCase(v.Args.Col)
+	F.Intrinsic.Control.Case(0)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Date_Order,V.Global.bSort)
+	F.Intrinsic.Control.Case(1)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Order_Number,V.Global.bSort)
+	F.Intrinsic.Control.Case(2)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Line,V.Global.bSort)
+	F.Intrinsic.Control.Case(3)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Part,V.Global.bSort)
+	F.Intrinsic.Control.Case(4)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Description,V.Global.bSort)
+	F.Intrinsic.Control.Case(5)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Qty,V.Global.bSort)
+	F.Intrinsic.Control.Case(6)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!Extension,V.Global.bSort)
+	F.Intrinsic.Control.Case(7)
+		F.Intrinsic.Variable.UDTMultiQuickSort(V.uGlobal.uLines!WO,V.Global.bSort)
+F.Intrinsic.Control.EndSelect
+
+Gui.Form1.gsfgGrid.Rows(1)
+
+Gui.Form1.gsfgGrid.LoadFromUDT("v.uglobal.uLines","Date_Order*!*Order_Number*!*Line*!*Part*!*Description*!*Qty*!*Extension*!*WO*!*Job*!*Suffix",2)
+Gui.Form1.gsfgGrid.FixedRows(1)
+'toggle our sort value, we started at false
+F.Intrinsic.Control.If(V.Global.bSort,=,True)
+	V.Global.bSort.Set(False)
+Function.Intrinsic.Control.Else
+	V.Global.bSort.Set(True)
+Function.Intrinsic.Control.EndIf
+
+
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Sort_Grid_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_3881_CRM_Order_View.gas",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+Function.Intrinsic.Control.EndIf
+
+
+Program.Sub.Sort_Grid.End
+
+program.sub.form1_resize.start
+
+V.local.width.declare(Long)
+V.local.height.declare(Long)
+V.local.x.declare(Long)
+V.local.Y.declare(Long)
+Function.Intrinsic.Control.If(Variable.Screen.Form1.Width,<,12355)
+	Gui.Form1..Size(12355,Variable.Screen.Form1.Height)
+Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.If(Variable.Screen.Form1.height,<,7815)
+	Gui.Form1..Size(Variable.Screen.Form1.Width,7815)
+Function.Intrinsic.Control.EndIf
+Function.Intrinsic.Math.mult(Variable.Screen.Form1.Height,0.886,Variable.Local.height)
+Function.Intrinsic.Math.mult(Variable.Screen.Form1.Width,0.96,Variable.Local.width)
+Gui.Form1.gsfgGrid.Size(V.Local.width,V.Local.height)
+
+program.sub.form1_resize.end
+
+Program.Sub.Comments.Start
+${$0$}$$}$TRT$}$8/21/2015 9:29:40 AM
+${$1$}$$}$$}$1$}$42918$}$$}$8/21/2015 9:30:45 AM$}$Script 1
+${$1$}$$}$$}$0$}$42908$}$$}$8/21/2015 9:29:40 AM$}$Populate
+${$2$}$$}$$}$0$}$0$}$WOQUERY$}$8/21/2015 9:29:40 AM$}$Open the Work order?  WOQUERY
+450000
+
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$Quote 6855
+
+coder: TRT
+
+Date: 8/21/2015
+
+Attached to CRM hooks.
+
+Going to show order lines for the customer selectd from CRM.
+
+
+
+
+Program.Sub.Comments.End
+
